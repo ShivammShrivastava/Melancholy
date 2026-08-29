@@ -1,0 +1,22 @@
+{
+  "name": "devcraft-backend",
+  "version": "1.0.0",
+  "description": "DevCraft — offline-first order management with Hinglish parsing. Backend modules: parsing pipeline, Firestore CRUD, sync/conflict-resolution layer.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test:parser": "node test-parser.js messages_train.json pred.json",
+    "test:sync": "node test-sync.js",
+    "batch": "node batch-runner.js",
+    "batch:rules": "node batch-runner.js messages_train.json submission.json --mode rules",
+    "batch:full": "node batch-runner.js messages_train.json submission.json --mode full",
+    "score": "python score.py --gold messages_train.json --pred pred.json",
+    "dev": "vercel dev"
+  },
+  "dependencies": {
+    "@huggingface/inference": "^2.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
