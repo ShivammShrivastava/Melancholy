@@ -11,11 +11,11 @@
  * plain HTML/CSS/JS frontend. Import this module wherever `db` is needed:
  *   import { db } from './firebase-init.js';
  */
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
 import {
   initializeFirestore,
   persistentLocalCache,
-} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 
 const app = initializeApp(firebaseConfig);

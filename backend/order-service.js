@@ -15,7 +15,7 @@
 import {
   collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where,
   getDocFromServer,
-} from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+} from 'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
 import { db } from './firebase-init.js';
 import { reconcileOrder } from './sync-service.js';
 
