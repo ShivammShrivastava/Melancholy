@@ -8,7 +8,7 @@
  * No frontend/UI is built here per instructions — this is the routing logic
  * only, meant to be imported by whoever builds the UI layer.
  */
-import { parseWithRules } from './rules-parser.js';
+import { parseWithRules } from '../parser/rules-parser.js';
 
 const TIMEOUT_MS = 8000;
 

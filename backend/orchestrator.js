@@ -11,8 +11,8 @@
  *   const result = await handleIncomingMessage("2 kurta navy blue, parso tak", "tailor");
  *   // result = { orderId, customer, items, due_date, amount, ... }
  */
-import { parseMessage } from './parse-message.js';
-import { createOrder } from './order-service.js';
+import { parseMessage } from './llm/parse-message.js';
+import { createOrder } from './database/order-service.js';
 
 /**
  * Parse a raw customer message and store the resulting order in Firestore.

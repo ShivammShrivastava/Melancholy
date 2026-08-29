@@ -27,7 +27,7 @@
  *   python score.py --gold <input.json> --pred <output.json>
  */
 import { readFileSync, writeFileSync } from 'fs';
-import { parseWithRules } from './rules-parser.js';
+import { parseWithRules } from './parser/rules-parser.js';
 
 // ---------------------------------------------------------------------------
 // Parse CLI arguments
