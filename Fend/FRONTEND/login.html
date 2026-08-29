@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log In — KaamFlow</title>
+  <meta name="description" content="Log in to KaamFlow, your offline-first AI order manager for small businesses.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={theme:{extend:{fontFamily:{sans:['Inter','system-ui','sans-serif']}}}}</script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="login-wrapper">
+
+  <div class="login-card">
+    <!-- Logo -->
+    <div class="flex items-center justify-center gap-3 mb-8">
+      <div class="sidebar-logo-icon" style="width:40px;height:40px">
+        <i data-lucide="zap" style="width:22px;height:22px;color:white"></i>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold text-slate-900">KaamFlow</h1>
+        <p class="text-xs text-slate-400 -mt-0.5">AI Order Manager</p>
+      </div>
+    </div>
+
+    <h2 class="text-2xl font-bold text-center text-slate-900 mb-1">Welcome back</h2>
+    <p class="text-center text-slate-500 text-sm mb-8">Log in to manage your orders</p>
+
+    <form id="login-form" onsubmit="handleLogin(event)">
+      <!-- Email / Phone -->
+      <div class="mb-4">
+        <label for="login-email" class="block text-sm font-medium text-slate-700 mb-1.5">Email or Phone</label>
+        <input type="text" id="login-email" class="input input-lg" placeholder="demo@kaamflow.com" value="demo@kaamflow.com" autocomplete="email">
+      </div>
+
+      <!-- Password -->
+      <div class="mb-6">
+        <label for="login-password" class="block text-sm font-medium text-slate-700 mb-1.5">Password</label>
+        <div class="relative">
+          <input type="password" id="login-password" class="input input-lg pr-10" placeholder="••••••••" value="demo123" autocomplete="current-password">
+          <button type="button" onclick="togglePassword()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" style="background:none;border:none;cursor:pointer">
+            <i data-lucide="eye" id="pw-toggle-icon" style="width:18px;height:18px"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Error message -->
+      <div id="login-error" class="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-sm font-medium hidden">
+        <i data-lucide="alert-circle" style="width:16px;height:16px;display:inline;vertical-align:middle;margin-right:4px"></i>
+        Invalid credentials. Try demo@kaamflow.com / demo123
+      </div>
+
+      <!-- Login Button -->
+      <button type="submit" id="login-btn" class="btn btn-primary btn-lg w-full mb-3">
+        <i data-lucide="log-in" style="width:18px;height:18px"></i>
+        Log In
+      </button>
+
+      <!-- Continue Offline -->
+      <button type="button" onclick="continueOffline()" class="btn btn-secondary btn-lg w-full mb-6">
+        <i data-lucide="wifi-off" style="width:18px;height:18px"></i>
+        Continue Offline
+      </button>
+    </form>
+
+    <!-- Offline badge -->
+    <div class="flex items-center justify-center gap-2 p-3 rounded-xl bg-blue-50 text-blue-700 text-xs font-medium mb-6">
+      <i data-lucide="shield-check" style="width:16px;height:16px"></i>
+      Works fully offline once logged in once
+    </div>
+
+    <!-- Sign up link -->
+    <p class="text-center text-sm text-slate-500">
+      New here? <a href="#" class="text-blue-600 font-semibold hover:underline">Create account</a>
+    </p>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script>
+    // Initialize Lucide
+    if (window.lucide) lucide.createIcons();
+
+    // Check if already logged in
+    if (DataStore.getSession()) {
+      window.location.href = 'overview.html';
+    }
+
+    function handleLogin(e) {
+      e.preventDefault();
+      var email = document.getElementById('login-email').value.trim();
+      var password = document.getElementById('login-password').value;
+
+      // Mock auth: accept demo user or any non-empty input
+      if ((email === 'demo@kaamflow.com' && password === 'demo123') || (email && password)) {
+        var user = {
+          name: 'Rahul',
+          email: email,
+          loggedInAt: new Date().toISOString(),
+        };
+        DataStore.setSession(user);
+
+        // Button loading state
+        var btn = document.getElementById('login-btn');
+        btn.innerHTML = '<i data-lucide="loader-2" class="animate-spin" style="width:18px;height:18px"></i> Logging in...';
+        btn.disabled = true;
+        if (window.lucide) lucide.createIcons();
+
+        setTimeout(function () {
+          window.location.href = 'overview.html';
+        }, 600);
+      } else {
+        document.getElementById('login-error').classList.remove('hidden');
+      }
+    }
+
+    function continueOffline() {
+      var existingSession = DataStore.getSession();
+      if (existingSession) {
+        window.location.href = 'overview.html';
+        return;
+      }
+      // Create offline session
+      DataStore.setSession({
+        name: 'Rahul',
+        email: 'offline@kaamflow.com',
+        loggedInAt: new Date().toISOString(),
+        offline: true,
+      });
+      window.location.href = 'overview.html';
+    }
+
+    function togglePassword() {
+      var pw = document.getElementById('login-password');
+      var icon = document.getElementById('pw-toggle-icon');
+      if (pw.type === 'password') {
+        pw.type = 'text';
+        icon.setAttribute('data-lucide', 'eye-off');
+      } else {
+        pw.type = 'password';
+        icon.setAttribute('data-lucide', 'eye');
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+  </script>
+</body>
+</html>

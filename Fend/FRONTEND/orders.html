@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orders — KaamFlow</title>
+  <meta name="description" content="Manage all your orders in one place — KaamFlow AI Order Manager.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={theme:{extend:{fontFamily:{sans:['Inter','system-ui','sans-serif']}}}}</script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- Page Header -->
+    <div class="flex items-start justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900">Orders</h1>
+        <p class="text-slate-500 text-sm mt-1">Manage every job from one place.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button class="btn btn-secondary">
+          <i data-lucide="message-square-plus" style="width:16px;height:16px"></i> Import Messages
+        </button>
+        <a href="create-order.html" class="btn btn-primary">
+          <i data-lucide="plus" style="width:16px;height:16px"></i> New Order
+        </a>
+      </div>
+    </div>
+
+    <!-- Search & Filters -->
+    <div class="card mb-6" style="padding:16px">
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="relative flex-1 min-w-[240px]">
+          <i data-lucide="search" style="width:18px;height:18px;position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8"></i>
+          <input type="text" id="order-search" class="input" style="padding-left:40px" placeholder="Search customer, order, item..." oninput="filterOrders()">
+        </div>
+        <div class="flex flex-wrap gap-2" id="status-filters">
+          <button class="badge badge-info active-filter" data-status="all" onclick="setFilter('all')">All</button>
+          <button class="badge badge-neutral" data-status="new" onclick="setFilter('new')">New</button>
+          <button class="badge badge-neutral" data-status="in_progress" onclick="setFilter('in_progress')">In Progress</button>
+          <button class="badge badge-neutral" data-status="ready" onclick="setFilter('ready')">Ready</button>
+          <button class="badge badge-neutral" data-status="completed" onclick="setFilter('completed')">Completed</button>
+          <button class="badge badge-neutral" data-status="overdue" onclick="setFilter('overdue')">Overdue</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orders Table -->
+    <div class="table-wrapper" data-animate>
+      <table class="data-table" id="orders-table">
+        <thead>
+          <tr>
+            <th>Order ID</th>
+            <th>Customer</th>
+            <th>Items</th>
+            <th>Due Date</th>
+            <th>Total</th>
+            <th>Payment Status</th>
+            <th>Order Status</th>
+          </tr>
+        </thead>
+        <tbody id="orders-tbody">
+          <!-- Filled by JS -->
+        </tbody>
+      </table>
+      <div class="px-4 py-3 text-sm text-slate-500 border-t border-slate-100 flex items-center justify-between">
+        <span id="orders-count">Showing 0 of 0 orders</span>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-ghost btn-sm" id="prev-page" onclick="changePage(-1)" disabled>&lt;</button>
+          <button class="btn btn-ghost btn-sm" id="next-page" onclick="changePage(1)">&gt;</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Order Detail Drawer -->
+    <div class="drawer-overlay" id="order-drawer-overlay" onclick="closeDrawer()"></div>
+    <div class="drawer" id="order-drawer">
+      <div id="order-drawer-content"></div>
+    </div>
+
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/status.js"></script>
+  <script src="js/parser.js"></script>
+  <script src="js/sync.js"></script>
+  <script src="js/chatbot.js"></script>
+  <script src="js/shell.js"></script>
+  <script>
+    var currentFilter = 'all';
+    var currentPage = 0;
+    var pageSize = 8;
+    var currentSearch = '';
+
+    function setFilter(status) {
+      currentFilter = status;
+      currentPage = 0;
+      // Update filter button styles
+      document.querySelectorAll('#status-filters .badge').forEach(function (btn) {
+        btn.className = btn.dataset.status === status ? 'badge badge-info active-filter' : 'badge badge-neutral';
+        btn.style.cursor = 'pointer';
+      });
+      renderOrders();
+    }
+
+    function filterOrders() {
+      currentSearch = document.getElementById('order-search').value;
+      currentPage = 0;
+      renderOrders();
+    }
+
+    function changePage(delta) {
+      currentPage += delta;
+      if (currentPage < 0) currentPage = 0;
+      renderOrders();
+    }
+
+    function renderOrders() {
+      var filters = {};
+      if (currentFilter !== 'all') filters.status = currentFilter;
+      if (currentSearch) filters.search = currentSearch;
+      var allOrders = DataStore.getOrders(filters);
+      var totalOrders = allOrders.length;
+      var start = currentPage * pageSize;
+      var pageOrders = allOrders.slice(start, start + pageSize);
+
+      var tbody = document.getElementById('orders-tbody');
+      var html = '';
+
+      if (pageOrders.length === 0) {
+        html = '<tr><td colspan="7" class="text-center py-12 text-slate-400"><i data-lucide="inbox" style="width:32px;height:32px;margin:0 auto 8px;display:block"></i>No orders found</td></tr>';
+      } else {
+        pageOrders.forEach(function (order) {
+          var today = new Date().toISOString().slice(0, 10);
+          var dueDisplay = '';
+          if (order.due_date === today) {
+            dueDisplay = '<span class="text-blue-600 font-medium">Today</span>';
+          } else if (order.due_date) {
+            dueDisplay = DataStore.formatDate(order.due_date);
+          } else {
+            dueDisplay = '<span class="text-slate-400">Not set</span>';
+          }
+
+          var itemsSummary = order.items.map(function (it) { return it.quantity + ' × ' + it.description; }).join(', ');
+          var payAmount = order._payment_status !== 'paid' ? DataStore.formatCurrency(order.amount) : '';
+
+          html += '<tr onclick="openOrderDrawer(\'' + order.id + '\')">' +
+            '<td class="font-semibold text-slate-900">#' + order.id.replace('ord-', '') + '</td>' +
+            '<td class="font-medium">' + (order.customer || 'Unknown') + '</td>' +
+            '<td class="text-slate-600 truncate" style="max-width:180px">' + itemsSummary + '</td>' +
+            '<td>' + dueDisplay + '</td>' +
+            '<td class="font-semibold">' + DataStore.formatCurrency(order.amount) + '</td>' +
+            '<td>' + Shell.renderPaymentPill(order._payment_status, order.amount) + '</td>' +
+            '<td>' + Shell.renderStatusBadge(order._status) + '</td>' +
+            '</tr>';
+        });
+      }
+
+      tbody.innerHTML = html;
+      document.getElementById('orders-count').textContent = 'Showing ' + pageOrders.length + ' of ' + totalOrders + ' orders';
+      document.getElementById('prev-page').disabled = currentPage === 0;
+      document.getElementById('next-page').disabled = start + pageSize >= totalOrders;
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function openOrderDrawer(orderId) {
+      var order = DataStore.getOrder(orderId);
+      if (!order) return;
+
+      var drawer = document.getElementById('order-drawer');
+      var overlay = document.getElementById('order-drawer-overlay');
+      var content = document.getElementById('order-drawer-content');
+
+      var itemsHtml = order.items.map(function (it) {
+        var attrs = Shell.renderAttributeChips(it.attributes);
+        return '<div class="p-3 rounded-xl bg-slate-50 mb-2">' +
+          '<div class="flex items-center justify-between mb-1">' +
+          '<span class="font-semibold text-sm">' + it.quantity + ' × ' + it.description + '</span></div>' +
+          (attrs ? '<div class="flex flex-wrap gap-1 mt-2">' + attrs + '</div>' : '') +
+          '</div>';
+      }).join('');
+
+      var clarificationHtml = '';
+      if (order.needs_clarification) {
+        clarificationHtml = '<div class="p-3 rounded-xl bg-amber-50 border border-amber-200 mb-4">' +
+          '<div class="flex items-center gap-2 text-amber-700 font-semibold text-sm mb-1">' +
+          '<i data-lucide="alert-triangle" style="width:16px;height:16px"></i> Needs Clarification</div>' +
+          '<p class="text-sm text-amber-600">Some details need confirmation from the customer.</p></div>';
+      }
+
+      content.innerHTML = '<div class="flex items-center justify-between mb-6">' +
+        '<h2 class="text-lg font-bold text-slate-900">Order #' + order.id.replace('ord-', '') + '</h2>' +
+        '<button onclick="closeDrawer()" class="btn btn-ghost btn-sm"><i data-lucide="x" style="width:18px;height:18px"></i></button></div>' +
+        clarificationHtml +
+        '<div class="grid grid-cols-2 gap-3 mb-4">' +
+        '<div class="p-3 rounded-xl bg-slate-50"><p class="text-xs text-slate-500 mb-1">Customer</p><p class="font-semibold text-sm">' + (order.customer || 'Unknown') + '</p></div>' +
+        '<div class="p-3 rounded-xl bg-slate-50"><p class="text-xs text-slate-500 mb-1">Domain</p><p class="font-semibold text-sm capitalize">' + (order._domain || '—') + '</p></div>' +
+        '<div class="p-3 rounded-xl bg-slate-50"><p class="text-xs text-slate-500 mb-1">Due Date</p><p class="font-semibold text-sm">' + DataStore.formatDate(order.due_date) + '</p></div>' +
+        '<div class="p-3 rounded-xl bg-slate-50"><p class="text-xs text-slate-500 mb-1">Amount</p><p class="font-semibold text-sm">' + DataStore.formatCurrency(order.amount) + '</p></div></div>' +
+        '<div class="flex items-center gap-3 mb-4">' +
+        '<div>' + Shell.renderStatusBadge(order._status) + '</div>' +
+        '<div>' + Shell.renderPaymentBadge(order._payment_status) + '</div>' +
+        '<div>' + Shell.renderConfidenceRing(order.confidence, 48) + '</div></div>' +
+        '<h3 class="font-semibold text-sm mb-2">Items</h3>' + itemsHtml +
+        '<div class="mt-4 pt-4 border-t border-slate-200 flex gap-3">' +
+        '<span class="text-xs text-slate-400">Prior order ref: ' + (order.references_prior_order ? '✓ Yes' : '✗ No') + '</span>' +
+        '<span class="text-xs text-slate-400">Created: ' + DataStore.relativeTime(order._created_at) + '</span></div>' +
+        '<div class="mt-6 flex gap-3">' +
+        '<button class="btn btn-secondary flex-1" onclick="closeDrawer()">Close</button>' +
+        '<button class="btn btn-primary flex-1" onclick="markComplete(\'' + order.id + '\')">Mark Complete</button></div>';
+
+      drawer.classList.add('open');
+      overlay.classList.add('open');
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function closeDrawer() {
+      document.getElementById('order-drawer').classList.remove('open');
+      document.getElementById('order-drawer-overlay').classList.remove('open');
+    }
+
+    function markComplete(orderId) {
+      var order = DataStore.getOrder(orderId);
+      if (order) {
+        order._status = 'completed';
+        DataStore.saveOrder(order);
+        closeDrawer();
+        renderOrders();
+      }
+    }
+
+    // Initial render
+    renderOrders();
+  </script>
+</body>
+</html>

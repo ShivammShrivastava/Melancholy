@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ask KaamFlow — AI Assistant</title>
+  <meta name="description" content="Powerful AI search that works offline — ask KaamFlow anything about your orders.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={theme:{extend:{fontFamily:{sans:['Inter','system-ui','sans-serif']}}}}</script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="app">
+
+    <div class="max-w-3xl mx-auto">
+
+      <!-- Empty State / Header -->
+      <div id="chat-empty-state" class="flex flex-col items-center justify-center text-center pt-12 pb-8">
+        <div class="w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center mb-4">
+          <i data-lucide="bot" class="text-blue-600" style="width:36px;height:36px"></i>
+        </div>
+        <h1 class="text-2xl font-bold text-slate-900 mb-2">Ask KaamFlow</h1>
+        <p class="text-slate-500 text-sm mb-2">Powerful AI search that works offline</p>
+        <span class="chip text-xs"><i data-lucide="wifi-off" style="width:12px;height:12px"></i> Works offline</span>
+      </div>
+
+      <!-- Chat Messages -->
+      <div id="chat-messages" class="space-y-4 mb-6" style="min-height:100px"></div>
+
+      <!-- Suggested Queries -->
+      <div id="suggested-queries" class="flex flex-wrap justify-center gap-2 mb-6">
+        <!-- Filled by JS -->
+      </div>
+
+      <!-- Input Bar -->
+      <div class="sticky bottom-6">
+        <div class="card flex items-center gap-3" style="padding:12px 16px">
+          <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shrink-0">
+            <i data-lucide="sparkles" style="width:16px;height:16px;color:white"></i>
+          </div>
+          <input type="text" id="chat-input" class="flex-1 border-0 outline-none text-sm font-medium bg-transparent" placeholder="Ask anything about your orders..." onkeypress="if(event.key==='Enter')sendMessage()">
+          <button class="btn btn-primary btn-sm" onclick="sendMessage()">
+            <i data-lucide="send" style="width:16px;height:16px"></i>
+          </button>
+        </div>
+        <p class="text-center text-xs text-slate-400 mt-2 flex items-center justify-center gap-1">
+          <i data-lucide="wifi-off" style="width:12px;height:12px"></i> No internet needed — everything runs locally
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/status.js"></script>
+  <script src="js/parser.js"></script>
+  <script src="js/sync.js"></script>
+  <script src="js/chatbot.js"></script>
+  <script src="js/shell.js"></script>
+  <script>
+    // Render suggested queries
+    (function() {
+      var container = document.getElementById('suggested-queries');
+      Chatbot.SUGGESTED_QUERIES.forEach(function(q) {
+        var btn = document.createElement('button');
+        btn.className = 'chip';
+        btn.style.cursor = 'pointer';
+        btn.innerHTML = q;
+        btn.onclick = function() {
+          document.getElementById('chat-input').value = q;
+          sendMessage();
+        };
+        container.appendChild(btn);
+      });
+
+      // Load existing chat history
+      var history = DataStore.getChatHistory();
+      if (history.length > 0) {
+        document.getElementById('chat-empty-state').style.display = 'none';
+        document.getElementById('suggested-queries').style.display = 'none';
+        history.forEach(function(msg) {
+          appendBubble(msg.role, msg.text, msg.resultCard, false);
+        });
+      }
+
+      if (window.lucide) lucide.createIcons();
+    })();
+
+    function sendMessage() {
+      var input = document.getElementById('chat-input');
+      var text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+
+      // Hide empty state and suggestions
+      document.getElementById('chat-empty-state').style.display = 'none';
+      document.getElementById('suggested-queries').style.display = 'none';
+
+      // Add user bubble
+      appendBubble('user', text, null, true);
+
+      // Get response
+      var response = Chatbot.answerQuery(text);
+
+      // Add assistant bubble with delay
+      setTimeout(function() {
+        appendBubble('assistant', response.prose, response.resultCard, true);
+      }, 400);
+    }
+
+    function appendBubble(role, text, resultCard, animate) {
+      var container = document.getElementById('chat-messages');
+      var wrapper = document.createElement('div');
+      wrapper.style.display = 'flex';
+      wrapper.style.justifyContent = role === 'user' ? 'flex-end' : 'flex-start';
+      if (animate) wrapper.style.animation = 'bubbleIn 0.3s ease-out';
+
+      var bubble = document.createElement('div');
+      bubble.className = 'chat-bubble ' + role;
+      bubble.style.maxWidth = '80%';
+
+      if (role === 'user') {
+        bubble.textContent = text;
+      } else {
+        var html = '<div>' + (text || '').replace(/\n/g, '<br>') + '</div>';
+
+        if (resultCard) {
+          html += '<div style="margin-top:12px;padding:12px;background:white;border-radius:12px;border:1px solid #e2e8f0">';
+
+          if (resultCard.type === 'order_list') {
+            html += '<h4 class="text-xs font-semibold text-slate-500 uppercase mb-2">' + resultCard.title + '</h4>';
+            resultCard.orders.forEach(function(o, idx) {
+              var statusClass = o.status === 'overdue' ? 'badge-danger' : o.status === 'ready' ? 'badge-success' : o.status === 'in_progress' ? 'badge-warning' : 'badge-info';
+              html += '<div style="padding:8px 0;' + (idx < resultCard.orders.length - 1 ? 'border-bottom:1px solid #f1f5f9' : '') + '">' +
+                '<div class="flex justify-between items-center">' +
+                '<div><p class="font-semibold text-sm text-slate-900">' + o.customer + '</p>' +
+                '<p class="text-xs text-slate-500">' + o.items + '</p></div>' +
+                '<div class="text-right"><p class="font-semibold text-sm">' + o.amount + '</p>' +
+                '<span class="badge ' + statusClass + '" style="font-size:11px">' + o.status.replace('_', ' ') + '</span></div></div></div>';
+            });
+          } else if (resultCard.type === 'balance_list') {
+            html += '<h4 class="text-xs font-semibold text-slate-500 uppercase mb-2">' + resultCard.title + '</h4>';
+            resultCard.items.forEach(function(b) {
+              html += '<div class="flex justify-between items-center py-2 border-b border-slate-100">' +
+                '<span class="font-medium text-sm">' + b.name + '</span>' +
+                '<span class="font-bold text-red-600">' + b.amount + '</span></div>';
+            });
+          } else if (resultCard.type === 'order_detail') {
+            var od = resultCard.order;
+            html += '<h4 class="text-xs font-semibold text-slate-500 uppercase mb-2">' + resultCard.title + '</h4>';
+            html += '<p class="font-semibold text-sm">#' + od.id + '</p>';
+            od.items.forEach(function(it) {
+              html += '<p class="text-sm text-slate-600">' + it.quantity + '× ' + it.description + '</p>';
+              if (it.attributes && Object.keys(it.attributes).length > 0) {
+                html += '<div class="flex flex-wrap gap-1 mt-1">';
+                for (var k in it.attributes) {
+                  html += '<span class="text-xs bg-slate-100 px-2 py-0.5 rounded-full">' + k + ': ' + it.attributes[k] + '</span>';
+                }
+                html += '</div>';
+              }
+            });
+            html += '<p class="text-xs text-slate-400 mt-2">Due: ' + od.dueDate + ' · ' + od.amount + '</p>';
+          } else if (resultCard.type === 'capacity') {
+            html += '<h4 class="text-xs font-semibold text-slate-500 uppercase mb-2">' + resultCard.title + '</h4>';
+            html += '<div style="display:flex;align-items:flex-end;gap:4px;height:50px">';
+            var maxC = Math.max.apply(null, resultCard.days.map(function(d) { return d.count; }));
+            if (maxC === 0) maxC = 1;
+            resultCard.days.forEach(function(d) {
+              var h = Math.max(4, (d.count / maxC) * 40);
+              var color = d.isToday ? '#3b82f6' : '#e2e8f0';
+              html += '<div style="flex:1;text-align:center"><div style="height:' + h + 'px;background:' + color + ';border-radius:3px 3px 0 0;margin:0 auto;width:80%"></div>' +
+                '<div style="font-size:10px;color:#64748b;margin-top:3px">' + d.label + '</div></div>';
+            });
+            html += '</div>';
+          }
+
+          html += '</div>';
+        }
+
+        bubble.innerHTML = html;
+      }
+
+      wrapper.appendChild(bubble);
+      container.appendChild(wrapper);
+      container.scrollTop = container.scrollHeight;
+
+      // Scroll the whole page down
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+
+      if (window.lucide) lucide.createIcons();
+    }
+  </script>
+</body>
+</html>

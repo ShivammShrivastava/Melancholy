@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Due & Overdue — KaamFlow</title>
+  <meta name="description" content="Never miss a promised delivery or payment — KaamFlow.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={theme:{extend:{fontFamily:{sans:['Inter','system-ui','sans-serif']}}}}</script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- Page Header -->
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold text-slate-900 flex items-center gap-2">
+        <span class="text-red-500 text-2xl">!</span> Due & Overdue
+      </h1>
+      <p class="text-slate-500 text-sm mt-1">Never miss a promised delivery or payment.</p>
+    </div>
+
+    <!-- Two Column Layout -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- Left Column (2/3) -->
+      <div class="lg:col-span-2 space-y-6">
+
+        <!-- Overdue Orders -->
+        <div>
+          <h2 class="text-base font-semibold text-slate-900 flex items-center gap-2 mb-4">
+            <i data-lucide="alert-triangle" class="text-red-500" style="width:18px;height:18px"></i>
+            OVERDUE ORDERS (<span id="overdue-count">0</span>)
+          </h2>
+          <div id="overdue-list" class="space-y-3"></div>
+        </div>
+
+        <!-- Due Today -->
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-semibold text-slate-900 flex items-center gap-2">
+              <i data-lucide="calendar-check" class="text-blue-500" style="width:18px;height:18px"></i>
+              DUE TODAY (<span id="due-today-count">0</span>)
+            </h2>
+            <a href="orders.html" class="text-sm font-medium text-blue-600 hover:underline">View All</a>
+          </div>
+          <div id="due-today-list" class="space-y-3"></div>
+        </div>
+      </div>
+
+      <!-- Right Column (1/3) -->
+      <div>
+        <div class="card" data-animate>
+          <h3 class="text-base font-semibold text-slate-900 flex items-center gap-2 mb-4">
+            <i data-lucide="wallet" class="text-slate-600" style="width:18px;height:18px"></i>
+            Overdue Payments
+          </h3>
+          <div id="overdue-payments-list" class="space-y-3"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/status.js"></script>
+  <script src="js/parser.js"></script>
+  <script src="js/sync.js"></script>
+  <script src="js/chatbot.js"></script>
+  <script src="js/shell.js"></script>
+  <script>
+    (function() {
+      var today = new Date().toISOString().slice(0, 10);
+
+      // ── Overdue Orders ──
+      var overdue = DataStore.getOverdueOrders();
+      document.getElementById('overdue-count').textContent = overdue.length;
+
+      var overdueHtml = '';
+      if (overdue.length === 0) {
+        overdueHtml = '<div class="card text-center py-6 text-slate-400"><i data-lucide="check-circle" style="width:24px;height:24px;margin:0 auto 8px;display:block"></i><p class="text-sm">No overdue orders! 🎉</p></div>';
+      } else {
+        overdue.forEach(function(order) {
+          var daysOverdue = DataStore.daysBetween(order.due_date, today);
+          var itemSummary = order.items.map(function(it) { return it.quantity + ' × ' + it.description; }).join(', ');
+
+          overdueHtml += '<div class="card" style="padding:14px 16px;border-left:3px solid #ef4444">' +
+            '<div class="flex flex-wrap items-center gap-2 mb-2">' +
+            '<span class="badge badge-danger text-xs"><i data-lucide="clock" style="width:12px;height:12px;display:inline;vertical-align:middle"></i> ' + daysOverdue + ' day' + (daysOverdue > 1 ? 's' : '') + ' overdue</span>' +
+            '<span class="text-xs text-slate-400">Due: ' + DataStore.formatDate(order.due_date) + '</span></div>' +
+            '<div class="flex items-center justify-between">' +
+            '<div><p class="font-semibold text-sm text-slate-900">' + (order.customer || 'Unknown') + '</p>' +
+            '<p class="text-xs text-slate-500">' + itemSummary + '</p></div>' +
+            '<div class="text-right"><p class="text-xs text-slate-400">Balance</p>' +
+            '<p class="font-bold text-slate-900">' + DataStore.formatCurrency(order.amount) + '</p></div></div>' +
+            '<div class="flex gap-2 mt-3">' +
+            '<a href="orders.html" class="btn btn-secondary btn-sm flex-1"><i data-lucide="external-link" style="width:14px;height:14px"></i> Open</a>' +
+            '<button class="btn btn-primary btn-sm flex-1" onclick="markComplete(\'' + order.id + '\')">Mark Complete</button></div></div>';
+        });
+      }
+      document.getElementById('overdue-list').innerHTML = overdueHtml;
+
+      // ── Due Today ──
+      var dueToday = DataStore.getDueTodayOrders();
+      document.getElementById('due-today-count').textContent = dueToday.length;
+
+      var dueTodayHtml = '';
+      if (dueToday.length === 0) {
+        dueTodayHtml = '<div class="card text-center py-6 text-slate-400"><p class="text-sm">Nothing due today</p></div>';
+      } else {
+        dueToday.forEach(function(order) {
+          var time = order._created_at ? new Date(order._created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }).toUpperCase() : '';
+          var itemSummary = order.items.map(function(it) { return it.quantity + ' × ' + it.description; }).join(', ');
+
+          dueTodayHtml += '<div class="card flex items-center gap-3" style="padding:12px 16px">' +
+            Shell.renderAvatar(order.customer || '?', 'sm', order._customer_id) +
+            '<div class="flex-1 min-w-0">' +
+            '<div class="flex items-center gap-2">' +
+            '<p class="font-semibold text-sm text-slate-900">' + (order.customer || 'Unknown') + '</p>' +
+            '<span class="text-xs text-slate-400">' + time + '</span></div>' +
+            '<p class="text-xs text-slate-500 truncate"><i data-lucide="package" style="width:12px;height:12px;display:inline;vertical-align:middle;margin-right:2px"></i> ' + itemSummary + '</p></div>' +
+            '<div class="text-right shrink-0"><p class="font-semibold text-sm">' + DataStore.formatCurrency(order.amount) + '</p></div>' +
+            '<button class="btn btn-secondary btn-sm shrink-0" onclick="markReady(\'' + order.id + '\')">Mark Ready</button></div>';
+        });
+      }
+      document.getElementById('due-today-list').innerHTML = dueTodayHtml;
+
+      // ── Overdue Payments ──
+      var overduePayments = DataStore.getOverduePayments();
+      var opHtml = '';
+      if (overduePayments.length === 0) {
+        opHtml = '<p class="text-sm text-slate-400 text-center py-4">No overdue payments</p>';
+      } else {
+        overduePayments.forEach(function(op) {
+          opHtml += '<div class="p-3 rounded-xl border border-slate-200 mb-2">' +
+            '<div class="flex items-center justify-between mb-1">' +
+            '<p class="font-semibold text-sm text-slate-900">' + op.customer.name + '</p>' +
+            '<p class="font-bold text-red-600 text-sm">' + DataStore.formatCurrency(op.pending) + ' pending</p></div>' +
+            '<p class="text-xs text-red-500 mb-3">Due since ' + DataStore.formatDate(op.dueSince) + '</p>' +
+            '<div class="flex gap-2">' +
+            '<button class="btn btn-secondary btn-sm flex-1" onclick="recordPayment(\'' + op.customer.id + '\')">Record Payment</button>' +
+            '<button class="btn btn-ghost btn-sm"><i data-lucide="message-square" style="width:16px;height:16px"></i></button></div></div>';
+        });
+      }
+      document.getElementById('overdue-payments-list').innerHTML = opHtml;
+
+      if (window.lucide) lucide.createIcons();
+    })();
+
+    function markComplete(orderId) {
+      var order = DataStore.getOrder(orderId);
+      if (order) { order._status = 'completed'; DataStore.saveOrder(order); location.reload(); }
+    }
+
+    function markReady(orderId) {
+      var order = DataStore.getOrder(orderId);
+      if (order) { order._status = 'ready'; DataStore.saveOrder(order); location.reload(); }
+    }
+
+    function recordPayment(customerId) {
+      var customer = DataStore.getCustomer(customerId);
+      var pending = DataStore.getCustomerPendingDues(customerId);
+      var amount = prompt('Record payment for ' + customer.name + '\nPending: ' + DataStore.formatCurrency(pending) + '\n\nEnter amount:', pending);
+      if (amount && !isNaN(amount)) {
+        DataStore.recordPayment({ customer_id: customerId, amount: parseInt(amount), method: 'Cash' });
+        location.reload();
+      }
+    }
+  </script>
+</body>
+</html>

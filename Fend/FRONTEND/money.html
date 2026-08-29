@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Money — KaamFlow</title>
+  <meta name="description" content="Track revenue, payments, and pending balances — KaamFlow.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={theme:{extend:{fontFamily:{sans:['Inter','system-ui','sans-serif']}}}}</script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- Page Header -->
+    <div class="flex items-start justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-bold text-slate-900">Money</h1>
+        <p class="text-slate-500 text-sm mt-1">Keep track of what you earned and what is still pending.</p>
+      </div>
+      <button class="btn btn-primary" onclick="recordNewPayment()">
+        <i data-lucide="plus" style="width:16px;height:16px"></i> Record Payment
+      </button>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6" id="money-stats"></div>
+
+    <!-- Transactions Table -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <!-- Filters -->
+      <div class="p-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <div class="relative flex-1 min-w-[200px] max-w-xs">
+          <i data-lucide="search" style="width:18px;height:18px;position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#94a3b8"></i>
+          <input type="text" id="tx-search" class="input" style="padding-left:40px" placeholder="Search transactions..." oninput="renderTransactions()">
+        </div>
+        <div class="flex gap-2">
+          <button class="badge badge-info" id="filter-all" onclick="setTxFilter('all')">This Month</button>
+          <button class="badge badge-neutral" id="filter-7d" onclick="setTxFilter('7d')">Last 7 Days</button>
+          <button class="badge badge-neutral" id="filter-custom" onclick="setTxFilter('custom')">
+            <i data-lucide="calendar" style="width:12px;height:12px"></i> Custom Range
+          </button>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <table class="data-table" id="tx-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Customer</th>
+            <th>Order ID</th>
+            <th>Type</th>
+            <th>Amount</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="tx-tbody"></tbody>
+      </table>
+
+      <div class="px-4 py-3 text-sm text-slate-500 border-t border-slate-100 flex items-center justify-between">
+        <span id="tx-count">Showing 0 of 0</span>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-ghost btn-sm" id="tx-prev" onclick="changeTxPage(-1)" disabled>&lt;</button>
+          <button class="btn btn-ghost btn-sm" id="tx-next" onclick="changeTxPage(1)">&gt;</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/status.js"></script>
+  <script src="js/parser.js"></script>
+  <script src="js/sync.js"></script>
+  <script src="js/chatbot.js"></script>
+  <script src="js/shell.js"></script>
+  <script>
+    var txPage = 0;
+    var txPageSize = 8;
+    var txFilter = 'all';
+
+    function renderStats() {
+      var orders = DataStore.getOrders();
+      var payments = DataStore.getPayments();
+      var totalRevenue = orders.reduce(function(s, o) { return s + (o.amount || 0); }, 0);
+      var totalReceived = payments.reduce(function(s, p) { return s + p.amount; }, 0);
+      var pendingPayments = totalRevenue - totalReceived;
+      var overduePayments = DataStore.getOverduePayments().reduce(function(s, op) { return s + op.pending; }, 0);
+
+      var pendingCount = DataStore.getOverduePayments().length;
+
+      var stats = [
+        { label: "TODAY'S REVENUE", value: DataStore.formatCurrency(totalRevenue), icon: 'trending-up', sub: '', bg: '#f8fafc', iconColor: '#334155' },
+        { label: 'RECEIVED TODAY', value: DataStore.formatCurrency(totalReceived), icon: 'arrow-down-circle', sub: '<span class="text-green-600 text-xs font-medium">↑ +12% vs yesterday</span>', bg: '#f8fafc', iconColor: '#22c55e' },
+        { label: 'PENDING PAYMENTS', value: DataStore.formatCurrency(pendingPayments), icon: 'clock', sub: '<span class="text-xs text-slate-400">Across ' + pendingCount + ' invoices</span>', bg: '#f8fafc', iconColor: '#f59e0b' },
+        { label: 'OVERDUE PAYMENTS', value: DataStore.formatCurrency(overduePayments), icon: 'alert-triangle', sub: overduePayments > 0 ? '<a href="due-overdue.html" class="text-red-600 text-xs font-medium hover:underline">Action required →</a>' : '<span class="text-green-600 text-xs">All clear</span>', bg: '#fef2f2', iconColor: '#ef4444', valueColor: overduePayments > 0 ? '#ef4444' : '#0f172a' },
+      ];
+
+      var html = '';
+      stats.forEach(function(s, i) {
+        html += '<div class="stat-card" data-animate style="animation-delay:' + (i * 60) + 'ms">' +
+          '<p class="text-xs text-slate-500 uppercase font-semibold tracking-wider">' + s.label + '</p>' +
+          '<p class="text-2xl font-bold mt-2" style="color:' + (s.valueColor || '#0f172a') + '">' + s.value + '</p>' +
+          '<div class="mt-1">' + s.sub + '</div></div>';
+      });
+
+      document.getElementById('money-stats').innerHTML = html;
+    }
+
+    function buildTransactionList() {
+      var payments = DataStore.getPayments();
+      var orders = DataStore.getOrders();
+
+      // Build unified transaction list
+      var transactions = [];
+
+      // Payments
+      payments.forEach(function(p) {
+        var customer = DataStore.getCustomer(p.customer_id);
+        transactions.push({
+          date: p.date,
+          customer: customer ? customer.name : p.customer_id,
+          orderId: p.order_id,
+          type: 'Payment',
+          amount: p.amount,
+          status: 'received',
+        });
+      });
+
+      // Unpaid orders → Balance entries
+      orders.forEach(function(o) {
+        if (o._payment_status !== 'paid') {
+          transactions.push({
+            date: o._created_at ? o._created_at.slice(0, 10) : '',
+            customer: o.customer || 'Unknown',
+            orderId: o.id,
+            type: 'Balance',
+            amount: o.amount || 0,
+            status: 'pending',
+          });
+        }
+      });
+
+      // Sort by date descending
+      transactions.sort(function(a, b) { return b.date.localeCompare(a.date); });
+      return transactions;
+    }
+
+    function setTxFilter(filter) {
+      txFilter = filter;
+      txPage = 0;
+      document.querySelectorAll('#filter-all,#filter-7d,#filter-custom').forEach(function(el) {
+        el.className = 'badge badge-neutral';
+      });
+      if (filter === 'all') document.getElementById('filter-all').className = 'badge badge-info';
+      else if (filter === '7d') document.getElementById('filter-7d').className = 'badge badge-info';
+      else document.getElementById('filter-custom').className = 'badge badge-info';
+      renderTransactions();
+    }
+
+    function changeTxPage(delta) {
+      txPage += delta;
+      if (txPage < 0) txPage = 0;
+      renderTransactions();
+    }
+
+    function renderTransactions() {
+      var transactions = buildTransactionList();
+      var search = (document.getElementById('tx-search').value || '').toLowerCase();
+      if (search) {
+        transactions = transactions.filter(function(t) {
+          return t.customer.toLowerCase().includes(search) || t.orderId.toLowerCase().includes(search);
+        });
+      }
+
+      var total = transactions.length;
+      var start = txPage * txPageSize;
+      var page = transactions.slice(start, start + txPageSize);
+
+      var html = '';
+      if (page.length === 0) {
+        html = '<tr><td colspan="6" class="text-center py-8 text-slate-400">No transactions found</td></tr>';
+      } else {
+        page.forEach(function(t) {
+          var statusBadge = t.status === 'received'
+            ? '<span class="badge badge-success"><span style="width:6px;height:6px;border-radius:50%;background:#22c55e;display:inline-block"></span> Received</span>'
+            : '<span class="badge badge-info"><span style="width:6px;height:6px;border-radius:50%;background:#3b82f6;display:inline-block"></span> Pending</span>';
+
+          html += '<tr>' +
+            '<td>' + DataStore.formatDate(t.date) + '</td>' +
+            '<td class="font-medium">' + t.customer + '</td>' +
+            '<td class="text-slate-500">#' + t.orderId.replace('ord-','') + '</td>' +
+            '<td>' + t.type + '</td>' +
+            '<td class="font-semibold">' + DataStore.formatCurrency(t.amount) + '</td>' +
+            '<td>' + statusBadge + '</td></tr>';
+        });
+      }
+
+      document.getElementById('tx-tbody').innerHTML = html;
+      document.getElementById('tx-count').textContent = 'Showing ' + (start + 1) + '-' + Math.min(start + txPageSize, total) + ' of ' + total;
+      document.getElementById('tx-prev').disabled = txPage === 0;
+      document.getElementById('tx-next').disabled = start + txPageSize >= total;
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function recordNewPayment() {
+      var customer = prompt('Customer name:');
+      if (!customer) return;
+      var amount = prompt('Payment amount (₹):');
+      if (!amount || isNaN(amount)) return;
+
+      var cust = DataStore.getCustomerByName(customer);
+      DataStore.recordPayment({
+        customer_id: cust ? cust.id : customer,
+        amount: parseInt(amount),
+        method: 'Cash',
+      });
+      renderStats();
+      renderTransactions();
+    }
+
+    // Init
+    renderStats();
+    renderTransactions();
+  </script>
+</body>
+</html>

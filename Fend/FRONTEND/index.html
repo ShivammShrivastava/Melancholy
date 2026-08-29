@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KaamFlow — AI Order Manager</title>
+  <script src="js/data.js"></script>
+  <script>
+    // Redirect based on session
+    var session = DataStore.getSession();
+    if (session) {
+      window.location.replace('overview.html');
+    } else {
+      window.location.replace('login.html');
+    }
+  </script>
+</head>
+<body></body>
+</html>
