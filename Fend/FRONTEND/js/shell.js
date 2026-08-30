@@ -74,6 +74,10 @@
     content.innerHTML = mainContent;
     mainArea.appendChild(content);
 
+    // Add footer map section
+    var footerMap = _buildFooterMap();
+    mainArea.appendChild(footerMap);
+
     app.appendChild(mainArea);
 
     // Add floating chat widget
@@ -204,6 +208,160 @@
         });
       }
     }, 50);
+  }
+
+  // ─── FOOTER LIVE LOCATION MAP ───
+  function _buildFooterMap() {
+    var section = document.createElement('div');
+    section.className = 'footer-map-section';
+    section.id = 'footer-map-section';
+
+    section.innerHTML = '<div class="footer-map-card">' +
+      '<div class="footer-map-header">' +
+        '<div class="footer-map-header-icon"><i data-lucide="map-pin" style="width:16px;height:16px;color:white"></i></div>' +
+        '<div class="footer-map-header-text">' +
+          '<h3>Your Live Location</h3>' +
+          '<p>Real-time tracking powered by Mappls</p>' +
+        '</div>' +
+        '<div class="footer-map-live-label"><span class="footer-map-live-dot"></span> LIVE</div>' +
+      '</div>' +
+      '<div class="footer-map-container">' +
+        '<div id="footer-live-map"></div>' +
+      '</div>' +
+      '<div class="footer-map-coords" id="footer-map-coords">' +
+        '<div class="coords-left">' +
+          '<i data-lucide="navigation" style="width:14px;height:14px"></i>' +
+          '<span>Fetching location...</span>' +
+        '</div>' +
+        '<span class="coords-value" id="footer-map-coords-value">---, ---</span>' +
+      '</div>' +
+    '</div>';
+
+    // Initialize map after DOM insertion
+    setTimeout(function () { _initFooterMap(); }, 300);
+
+    return section;
+  }
+
+  var _footerMap = null;
+  var _footerMarker = null;
+  var _geoWatchId = null;
+
+  function _initFooterMap() {
+    // Wait for Mappls SDK to load
+    if (typeof mappls === 'undefined') {
+      // Retry after SDK loads
+      var retryCount = 0;
+      var retryInterval = setInterval(function () {
+        retryCount++;
+        if (typeof mappls !== 'undefined') {
+          clearInterval(retryInterval);
+          _createMap();
+        } else if (retryCount > 30) {
+          clearInterval(retryInterval);
+          _showMapError('Map SDK could not load. Check your connection.');
+        }
+      }, 500);
+      return;
+    }
+    _createMap();
+  }
+
+  function _createMap() {
+    try {
+      // Default center: India (will update to user location)
+      _footerMap = new mappls.Map('footer-live-map', {
+        center: [28.6139, 77.2090],
+        zoom: 15,
+        zoomControl: true,
+        search: false,
+        location: true
+      });
+
+      _footerMap.addListener('load', function () {
+        // Request user's live location
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            function (pos) {
+              _updateMapPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+            },
+            function (err) {
+              _showMapError(_getGeoErrorMessage(err));
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          );
+
+          // Watch for position changes
+          _geoWatchId = navigator.geolocation.watchPosition(
+            function (pos) {
+              _updateMapPosition(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy);
+            },
+            function () {},
+            { enableHighAccuracy: true, timeout: 30000, maximumAge: 5000 }
+          );
+        } else {
+          _showMapError('Geolocation is not supported by your browser.');
+        }
+      });
+    } catch (e) {
+      _showMapError('Failed to initialize map.');
+    }
+  }
+
+  function _updateMapPosition(lat, lng, accuracy) {
+    if (!_footerMap) return;
+
+    var pos = { lat: lat, lng: lng };
+
+    // Fly to position
+    _footerMap.setCenter(pos);
+
+    // Remove old marker
+    if (_footerMarker) {
+      _footerMarker.remove();
+    }
+
+    // Add pulsing marker
+    var markerEl = document.createElement('div');
+    markerEl.style.cssText = 'width:20px;height:20px;position:relative;';
+    markerEl.innerHTML = '<div style="width:20px;height:20px;border-radius:50%;background:rgba(59,130,246,0.25);position:absolute;animation:livePulse 2s ease-in-out infinite;"></div>' +
+      '<div style="width:12px;height:12px;border-radius:50%;background:#3b82f6;border:2.5px solid white;box-shadow:0 2px 6px rgba(59,130,246,0.5);position:absolute;top:4px;left:4px;"></div>';
+
+    _footerMarker = new mappls.Marker({
+      map: _footerMap,
+      position: pos,
+      element: markerEl
+    });
+
+    // Update coordinates display
+    var coordsContainer = document.getElementById('footer-map-coords');
+    var coordsValue = document.getElementById('footer-map-coords-value');
+    if (coordsContainer && coordsValue) {
+      var leftDiv = coordsContainer.querySelector('.coords-left span');
+      if (leftDiv) leftDiv.textContent = 'Accuracy: ±' + Math.round(accuracy) + 'm';
+      coordsValue.textContent = lat.toFixed(5) + ', ' + lng.toFixed(5);
+    }
+  }
+
+  function _showMapError(msg) {
+    var container = document.getElementById('footer-live-map');
+    if (container) {
+      container.innerHTML = '<div class="footer-map-error">' +
+        '<i data-lucide="map-pin-off" style="width:32px;height:32px"></i>' +
+        '<span>' + msg + '</span></div>';
+      if (window.lucide) lucide.createIcons();
+    }
+    var coordsValue = document.getElementById('footer-map-coords-value');
+    if (coordsValue) coordsValue.textContent = 'Unavailable';
+  }
+
+  function _getGeoErrorMessage(error) {
+    switch (error.code) {
+      case error.PERMISSION_DENIED: return 'Location access denied. Enable it in browser settings.';
+      case error.POSITION_UNAVAILABLE: return 'Location information is unavailable.';
+      case error.TIMEOUT: return 'Location request timed out.';
+      default: return 'Unable to get location.';
+    }
   }
 
   // ─── CHAT FUNCTIONS ───
@@ -394,6 +552,7 @@
     renderPaymentPill:    renderPaymentPill,
     renderAvatar:         renderAvatar,
     renderAttributeChips: renderAttributeChips,
+    initFooterMap:        _initFooterMap,
   };
 
   // Auto-render when DOM is ready
